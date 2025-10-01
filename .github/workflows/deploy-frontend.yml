@@ -2,8 +2,7 @@ name: Deploy Frontend to Azure App Service
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
   workflow_dispatch:
 
 jobs:
@@ -11,30 +10,32 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-    - name: Setup Node.js 22.x
-      uses: actions/setup-node@v4
-      with:
-        node-version: '22.x'
-        cache: 'npm'
+      - name: Use Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
 
-    - name: Install dependencies
-      run: npm ci
+      # Install dependencies to ensure clean package-lock.json
+      - name: Install deps
+        run: npm ci
 
-    - name: Build application
-      run: npm run build
+      # Optional: Build locally (Oryx can also build on App Service)
+      - name: Build
+        run: npm run build
 
-    - name: Deploy to Azure App Service
-      uses: azure/webapps-deploy@v2
-      with:
-        app-name: ${{ secrets.AZURE_WEBAPP_NAME }}
-        publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
-        package: '.'
+      - name: Deploy to Azure Web App
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ secrets.AZURE_WEBAPP_NAME }}
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+          package: .   # Deploy root directory with package.json for Oryx
 
-    - name: Deployment Status
-      run: |
-        echo "✅ Deployment completed successfully!"
-        echo "🌐 App URL: https://app-002-gen10-step3-1-node-oshima30.azurewebsites.net"
-        echo "📝 App Name: ${{ secrets.AZURE_WEBAPP_NAME }}"
+      - name: Deployment Status
+        run: |
+          echo "✅ Deployment completed successfully!"
+          echo "🌐 App should be available at: https://${{ secrets.AZURE_WEBAPP_NAME }}.azurewebsites.net"
+          echo "📝 Using Oryx build flow with npm start -p $PORT"
