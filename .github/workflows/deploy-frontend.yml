@@ -1,0 +1,113 @@
+name: Deploy Frontend to Azure App Service
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Build application
+      run: npm run build
+
+    - name: Create deployment artifact
+      run: |
+        # Create a deployment directory
+        mkdir -p deployment
+
+        # Copy necessary files for production deployment
+        cp -r .next deployment/
+        cp -r public deployment/
+        cp package.json deployment/
+        cp package-lock.json deployment/
+        cp next.config.js deployment/ || echo "next.config.js not found, skipping"
+
+        # Copy environment files
+        cp .env.production deployment/ || echo ".env.production not found, skipping"
+        cp .env.local deployment/ || echo ".env.local not found, skipping"
+
+        # Create web.config for Azure App Service (Windows)
+        cat > deployment/web.config << 'EOF'
+        <?xml version="1.0" encoding="utf-8"?>
+        <configuration>
+          <system.webServer>
+            <handlers>
+              <add name="iisnode" path="server.js" verb="*" modules="iisnode"/>
+            </handlers>
+            <rewrite>
+              <rules>
+                <rule name="DynamicContent">
+                  <match url="/*" />
+                  <conditions>
+                    <add input="{REQUEST_FILENAME}" matchType="IsFile" negate="True"/>
+                  </conditions>
+                  <action type="Rewrite" url="server.js"/>
+                </rule>
+              </rules>
+            </rewrite>
+            <iisnode nodeProcessCommandLine="node" />
+          </system.webServer>
+        </configuration>
+        EOF
+
+        # Create server.js for production startup
+        cat > deployment/server.js << 'EOF'
+        const { createServer } = require('http')
+        const { parse } = require('url')
+        const next = require('next')
+
+        const dev = process.env.NODE_ENV !== 'production'
+        const hostname = process.env.WEBSITE_HOSTNAME || 'localhost'
+        const port = process.env.PORT || 3000
+
+        const app = next({ dev, hostname, port })
+        const handle = app.getRequestHandler()
+
+        app.prepare().then(() => {
+          createServer(async (req, res) => {
+            try {
+              const parsedUrl = parse(req.url, true)
+              await handle(req, res, parsedUrl)
+            } catch (err) {
+              console.error('Error occurred handling', req.url, err)
+              res.statusCode = 500
+              res.end('internal server error')
+            }
+          })
+            .once('error', (err) => {
+              console.error(err)
+              process.exit(1)
+            })
+            .listen(port, () => {
+              console.log(`> Ready on http://${hostname}:${port}`)
+            })
+        })
+        EOF
+
+    - name: Deploy to Azure App Service
+      uses: azure/webapps-deploy@v2
+      with:
+        app-name: ${{ secrets.AZURE_WEBAPP_NAME }}
+        publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+        package: './deployment'
+
+    - name: Deployment Status
+      run: |
+        echo "Deployment completed!"
+        echo "App URL: https://${{ secrets.AZURE_WEBAPP_NAME }}.azurewebsites.net"
