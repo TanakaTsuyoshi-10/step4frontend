@@ -39,7 +39,6 @@ export function useBarcodeScanner() {
 
     // 権限状態の把握（使える環境のみ）
     try {
-      // @ts-ignore
       const perm = await navigator.permissions?.query({ name: 'camera' as any })
       if (perm) log('permission:', perm.state)
     } catch {}
@@ -72,9 +71,6 @@ export function useBarcodeScanner() {
       rafRef.current = null
     }
     if (zxingRef.current) {
-      try {
-        await zxingRef.current.reset()
-      } catch {}
       zxingRef.current = null
     }
     if (streamRef.current) {

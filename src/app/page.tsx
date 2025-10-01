@@ -11,8 +11,8 @@ import { Button } from '@/components/ui/button'
 import { ShoppingCart, Settings, BarChart3, Search, Calculator } from 'lucide-react'
 
 export default function Home() {
-  const { items, total } = useTradeStore()
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const { items } = useTradeStore()
+  const [, setIsSettingsOpen] = useState(false)
 
   return (
     <div className="min-h-screen relative">

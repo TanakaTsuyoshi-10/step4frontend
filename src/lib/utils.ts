@@ -36,7 +36,7 @@ export function getTaxDisplayName(taxCode: string): string {
 
 export function validateProductCode(code: string): boolean {
   const numericCode = parseInt(code)
-  return !isNaN(numericCode) && numericCode > 0 && numericCode <= 99999999999999999999999999
+  return !isNaN(numericCode) && numericCode > 0 && numericCode <= Number.MAX_SAFE_INTEGER
 }
 
 export function formatDateTime(date: Date): string {
