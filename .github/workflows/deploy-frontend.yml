@@ -1,4 +1,4 @@
-name: Deploy Frontend to Azure App Service
+name: Deploy Frontend to Azure App Service (zip-run)
 
 on:
   push:
@@ -13,32 +13,39 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Use Node.js 22
+      - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: 'npm'
 
-      - name: Create production env file
-        run: |
-          echo "NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }}" > .env.production
-          cat .env.production
-
-      - name: Install dependencies
+      - name: Install deps
         run: npm ci
 
-      - name: Build application
+      - name: Build
         run: npm run build
 
-      - name: Deploy to Azure App Service
+      - name: Generate .env.production from secrets
+        run: |
+          echo "NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }}" > .env.production
+
+      - name: Prune to production deps
+        run: npm prune --omit=dev
+
+      - name: Create release.zip
+        run: |
+          mkdir -p .release
+          cp -a .next public package.json package-lock.json next.config.js .env.production .release/
+          # runtime に必要な node_modules を同梱
+          cp -a node_modules .release/node_modules
+          cd .release
+          zip -yr ../release.zip .
+          cd ..
+          ls -lh release.zip
+
+      - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
         with:
           app-name: ${{ secrets.AZURE_WEBAPP_NAME }}
           publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
-          package: .
-
-      - name: Deployment Status
-        run: |
-          echo "✅ Deployment completed successfully!"
-          echo "🌐 App URL: https://${{ secrets.AZURE_WEBAPP_NAME }}.azurewebsites.net"
-          echo "📝 Using project root deployment with Oryx build"
+          package: release.zip
