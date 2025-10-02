@@ -9,6 +9,9 @@
     "lint": "next lint",
     "type-check": "tsc --noEmit"
   },
+  "engines": {
+    "node": ">=20 <23"
+  },
   "dependencies": {
     "@hookform/resolvers": "^3.6.0",
     "@radix-ui/react-dialog": "^1.1.1",

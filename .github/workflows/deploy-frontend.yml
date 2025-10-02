@@ -19,23 +19,36 @@ jobs:
           node-version: '22'
           cache: 'npm'
 
-      # Install dependencies to ensure clean package-lock.json
-      - name: Install deps
-        run: npm ci
+      - name: Create production env file
+        run: |
+          echo "NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }}" > .env.production
+          cat .env.production
 
-      # Optional: Build locally (Oryx can also build on App Service)
-      - name: Build
-        run: npm run build
+      - name: Install deps & Build
+        run: |
+          npm ci
+          npm run build
 
-      - name: Deploy to Azure Web App
+      - name: Prepare deploy artifact (include node_modules)
+        run: |
+          rm -rf deploy && mkdir -p deploy
+          cp -r .next deploy/.next
+          cp -r public deploy/public
+          cp -r node_modules deploy/node_modules
+          cp package.json deploy/package.json
+          cp package-lock.json deploy/package-lock.json || true
+          [ -f .env.production ] && cp .env.production deploy/.env.production || true
+          [ -f next.config.js ] && cp next.config.js deploy/ || true
+
+      - name: Zip artifact
+        run: |
+          cd deploy
+          zip -r ../frontend.zip ./*
+          cd ..
+
+      - name: Deploy to Azure
         uses: azure/webapps-deploy@v3
         with:
           app-name: ${{ secrets.AZURE_WEBAPP_NAME }}
           publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
-          package: .   # Deploy root directory with package.json for Oryx
-
-      - name: Deployment Status
-        run: |
-          echo "✅ Deployment completed successfully!"
-          echo "🌐 App should be available at: https://${{ secrets.AZURE_WEBAPP_NAME }}.azurewebsites.net"
-          echo "📝 Using Oryx build flow with npm start -p $PORT"
+          package: frontend.zip
