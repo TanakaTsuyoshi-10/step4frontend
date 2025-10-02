@@ -8,7 +8,6 @@ on:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -19,32 +18,40 @@ jobs:
           node-version: '22'
           cache: 'npm'
 
+      - name: Create production env file
+        run: |
+          echo "NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }}" > .env.production
+          echo "[env] NEXT_PUBLIC_API_URL set"
+
       - name: Install deps
         run: npm ci
 
-      - name: Build
+      - name: Build (standalone)
         run: npm run build
 
-      - name: Generate .env.production from secrets
+      - name: Prepare release.zip (standalone minimal)
         run: |
-          echo "NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }}" > .env.production
+          rm -f release.zip
+          rm -rf release
+          mkdir -p release/.next/standalone
+          mkdir -p release/.next/static
 
-      - name: Create standalone release.zip
-        run: |
-          mkdir -p .release
-          # standalone に必要なファイルのみ同梱
-          cp -a .next/standalone/. .release/
-          cp -a .next/static .release/.next/static
-          cp -a public .release/public
-          cp -a server.js .env.production .release/
-          cd .release
-          zip -yr ../release.zip .
-          cd ..
+          # 必要最小限だけ同梱
+          cp -r .next/standalone/*  release/.next/standalone/
+          cp -r .next/static/*      release/.next/static/ || true
+          if [ -d public ]; then cp -r public release/public; fi
+          cp server.js              release/server.js
+
+          echo "[release] tree (top level)"
+          find release -maxdepth 2 -type f | sed 's/^/ - /'
+
+          cd release && zip -qr ../release.zip . && cd ..
           ls -lh release.zip
 
-      - name: Deploy to Azure Web App
+      - name: Deploy to Azure App Service
         uses: azure/webapps-deploy@v3
         with:
           app-name: ${{ secrets.AZURE_WEBAPP_NAME }}
           publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
           package: release.zip
+          slot-name: production
