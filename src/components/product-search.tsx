@@ -160,21 +160,22 @@ export function ProductSearch() {
         </div>
       )}
 
-      {/* バーコードスキャナーUI - video elementを最初に描画 */}
+      {/* バーコードスキャナーUI - video elementを最前面で描画 */}
       {isScanning && (
-        <div className="p-4 border-2 border-dashed border-gray-300 rounded-lg">
+        <div className="p-4 border-2 border-dashed border-gray-300 rounded-lg bg-white">
           <div className="relative mx-auto w-full max-w-md">
+            {/* Video element with highest z-index for visibility */}
             <video
               ref={videoRef}
-              className="w-full aspect-video object-cover rounded-lg bg-black"
+              className="relative z-10 w-full aspect-video object-cover rounded-lg bg-black"
               playsInline
               muted
               autoPlay
             />
 
-            {/* スキャンガイドライン（16:9の横長video用） */}
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <div className="relative w-3/4 h-1/2 border-4 border-red-500 rounded-md bg-red-500/10">
+            {/* スキャンガイドライン（16:9の横長video用） - video の上に透明オーバーレイ */}
+            <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none">
+              <div className="relative w-3/4 h-1/2 border-4 border-red-500 rounded-md bg-red-500/5">
                 {/* コーナーマーカー */}
                 <div className="absolute -top-1 -left-1 w-6 h-6 border-t-4 border-l-4 border-red-500"></div>
                 <div className="absolute -top-1 -right-1 w-6 h-6 border-t-4 border-r-4 border-red-500"></div>
@@ -185,16 +186,16 @@ export function ProductSearch() {
               </div>
             </div>
 
-            {/* ステータス表示 */}
-            <div className="absolute top-2 left-2">
+            {/* ステータス表示 - 最前面 */}
+            <div className="absolute top-2 left-2 z-30">
               {isScanning && (
-                <div className="bg-green-600 text-white px-2 py-1 rounded text-xs animate-pulse">
+                <div className="bg-green-600 text-white px-2 py-1 rounded text-xs animate-pulse shadow-lg">
                   📷 スキャン中...
                 </div>
               )}
             </div>
             {searchMutation.isPending && (
-              <div className="absolute top-2 right-2 bg-orange-500 text-white px-2 py-1 rounded text-xs animate-bounce">
+              <div className="absolute top-2 right-2 z-30 bg-orange-500 text-white px-2 py-1 rounded text-xs animate-bounce shadow-lg">
                 🔎 商品検索中...
               </div>
             )}
