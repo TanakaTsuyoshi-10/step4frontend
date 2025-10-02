@@ -2,7 +2,7 @@ name: Deploy Frontend to Azure App Service (standalone-flat)
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ main ]
   workflow_dispatch:
 
 jobs:
@@ -10,61 +10,63 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+    - uses: actions/checkout@v4
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: 'npm'
+    - name: Use Node.js 22
+      uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+        cache: 'npm'
 
-      - name: Install deps
-        run: npm ci
+    - name: Create production env file
+      run: |
+        echo "NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }}" > .env.production
+        cat .env.production
 
-      - name: Build (Next.js standalone)
-        run: npm run build
+    - name: Install deps
+      run: npm ci
 
-      # ここが肝：standalone の中身を release/ 直下にフラット配置
-      - name: Create release folder (flatten)
-        run: |
-          rm -rf release
-          mkdir -p release
-          # 1) standalone の中身を release 直下へ（= ルート直下に server.js が来る）
-          cp -R .next/standalone/* release/
-          # 2) 静的ファイルと BUILD_ID は ./next に揃える
-          mkdir -p release/.next
-          cp -R .next/static release/.next/static
-          cp .next/BUILD_ID release/.next/BUILD_ID
-          # 3) public も同梱
-          cp -R public release/public || true
-          # 4) ルートの package.json（起動時に Next が参照することがあるため）
-          cp package.json release/package.json
-          # 5) 実行時に使う .env.production を生成（GitHub Secrets から）
-          echo "NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }}" > release/.env.production
+    - name: Build
+      run: npm run build
 
-      - name: Show release layout (debug)
-        run: |
-          echo "== release top =="
-          ls -la release | sed -n '1,200p'
-          echo "== release/.next =="
-          ls -la release/.next | sed -n '1,200p'
-          echo "== server.js path =="
-          test -f release/server.js && echo "[OK] server.js exists at release/server.js" || (echo "[NG] server.js missing" && exit 1)
-          echo "== BUILD_ID =="
-          cat release/.next/BUILD_ID || true
+    - name: Show .next (top 2 levels)
+      run: |
+        set -xe
+        find .next -maxdepth 2 -type d -print
+        ls -la .next | sed -n '1,120p'
 
-      - name: Zip artifact
-        run: |
-          cd release
-          zip -r ../release.zip .
-          cd -
-          ls -lh release.zip
+    - name: Prepare release (flat from standalone)
+      run: |
+        set -xe
+        rm -rf release
+        mkdir -p release/.next
+        # 1) standalone の中身をルートへフラットコピー（Next純正 server.js をルートへ）
+        cp -R .next/standalone/* release/
+        # 2) ルート .next へ必要なビルド物を配置
+        cp -R .next/static release/.next/
+        cp .next/BUILD_ID release/.next/BUILD_ID
+        # 3) 公開ファイル
+        cp -R public release/public
+        # 4) dotenv / package.json も一応同梱
+        cp -f .env.production release/.env.production || true
+        cp -f package.json release/package.json || true
 
-      - name: Deploy to Azure Web App
-        uses: azure/webapps-deploy@v3
-        with:
-          app-name: ${{ secrets.AZURE_WEBAPP_NAME }}
-          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
-          slot-name: 'production'
-          package: release.zip
+        echo "== release tree =="
+        find release -maxdepth 3 -print | sed -n '1,300p'
+        test -f release/server.js
+        test -f release/.next/BUILD_ID
+
+    - name: Zip
+      run: |
+        cd release
+        zip -qr ../release.zip .
+        cd ..
+        ls -lh release.zip
+
+    - name: Deploy to Azure App Service
+      uses: azure/webapps-deploy@v3
+      with:
+        app-name: ${{ secrets.AZURE_WEBAPP_NAME }}
+        publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+        package: release.zip
+        slot-name: 'production'
