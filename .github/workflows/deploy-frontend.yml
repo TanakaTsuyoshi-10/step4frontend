@@ -27,23 +27,28 @@ jobs:
         run: npm ci
 
       - name: Build (standalone)
-        run: npm run build
+        run: |
+          npm run build
+          echo '[debug] List .next after build (top 2 levels):'
+          find .next -maxdepth 2 -type f | sed 's/^/ - /'
 
-      - name: Prepare release.zip (standalone minimal)
+      - name: Prepare release.zip (include BUILD_ID & trace)
         run: |
           rm -f release.zip
           rm -rf release
           mkdir -p release/.next/standalone
           mkdir -p release/.next/static
 
-          # 必要最小限だけ同梱
-          cp -r .next/standalone/*  release/.next/standalone/
-          cp -r .next/static/*      release/.next/static/ || true
+          # 必要最小限 + BUILD_ID + trace
+          cp -r .next/standalone/*   release/.next/standalone/
+          cp -r .next/static/*       release/.next/static/ || true
+          if [ -f .next/BUILD_ID ]; then cp .next/BUILD_ID release/.next/BUILD_ID; fi
+          if [ -d .next/trace ]; then cp -r .next/trace release/.next/trace; fi
           if [ -d public ]; then cp -r public release/public; fi
-          cp server.js              release/server.js
+          cp server.js release/server.js
 
-          echo "[release] tree (top level)"
-          find release -maxdepth 2 -type f | sed 's/^/ - /'
+          echo '[release] tree snapshot:'
+          find release -maxdepth 3 -type f | sed 's/^/ - /'
 
           cd release && zip -qr ../release.zip . && cd ..
           ls -lh release.zip
