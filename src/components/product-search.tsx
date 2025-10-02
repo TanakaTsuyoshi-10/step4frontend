@@ -2,6 +2,7 @@
 
 import { useMutation } from '@tanstack/react-query'
 import { Camera, X, Plus } from 'lucide-react'
+import { useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { useTradeStore } from '@/store/trade-store'
@@ -13,8 +14,9 @@ import { useBarcodeScanner } from '@/hooks/use-barcode-scanner'
 export function ProductSearch() {
   const { pending, setPending, addPendingToCart } = useTradeStore()
   const { toast } = useToast()
+  const videoRef = useRef<HTMLVideoElement>(null)
 
-  const { videoRef, isScanning, error, start, stop, clearLast } = useBarcodeScanner()
+  const { isScanning, error, start, stop, clearLast } = useBarcodeScanner(videoRef)
 
   const searchMutation = useMutation({
     mutationFn: getProductByCode,
@@ -158,25 +160,21 @@ export function ProductSearch() {
         </div>
       )}
 
+      {/* バーコードスキャナーUI - video elementを最初に描画 */}
       {isScanning && (
         <div className="p-4 border-2 border-dashed border-gray-300 rounded-lg">
-          <div className="relative mx-auto aspect-[3/4] sm:aspect-[4/3] w-full max-w-[640px] rounded-xl overflow-hidden">
+          <div className="relative mx-auto w-full max-w-md">
             <video
               ref={videoRef}
-              className="w-full h-full object-cover rounded-md bg-black/20"
-              muted
+              className="w-full aspect-video object-cover rounded-lg bg-black"
               playsInline
+              muted
               autoPlay
             />
-            {/* スキャンガイドライン（縦横で比率調整） */}
+
+            {/* スキャンガイドライン（16:9の横長video用） */}
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <div
-                className="relative border-4 border-red-500 rounded-md bg-red-500/10"
-                style={{
-                  width: '70%',
-                  height: window.matchMedia && window.matchMedia('(orientation: portrait)').matches ? '30%' : '60%',
-                }}
-              >
+              <div className="relative w-3/4 h-1/2 border-4 border-red-500 rounded-md bg-red-500/10">
                 {/* コーナーマーカー */}
                 <div className="absolute -top-1 -left-1 w-6 h-6 border-t-4 border-l-4 border-red-500"></div>
                 <div className="absolute -top-1 -right-1 w-6 h-6 border-t-4 border-r-4 border-red-500"></div>
@@ -186,6 +184,7 @@ export function ProductSearch() {
                 <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-red-500 transform -translate-y-1/2 animate-pulse"></div>
               </div>
             </div>
+
             {/* ステータス表示 */}
             <div className="absolute top-2 left-2">
               {isScanning && (
@@ -200,6 +199,7 @@ export function ProductSearch() {
               </div>
             )}
           </div>
+
           <div className="mt-3 space-y-2">
             <p className="text-sm text-black text-center font-medium">
               📱 バーコードを赤い枠内に合わせてください

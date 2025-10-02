@@ -5,27 +5,54 @@ import { BrowserMultiFormatReader } from '@zxing/browser'
 
 type OnDetect = (code: string) => void
 
-export function useBarcodeScanner() {
-  const videoRef = useRef<HTMLVideoElement | null>(null)
+export function useBarcodeScanner(videoRef: React.RefObject<HTMLVideoElement>) {
   const streamRef = useRef<MediaStream | null>(null)
   const rafRef = useRef<number | null>(null)
   const zxingRef = useRef<BrowserMultiFormatReader | null>(null)
   const lastCodeRef = useRef<string | null>(null)
+  const onDetectRef = useRef<OnDetect | null>(null)
 
   const [isScanning, setIsScanning] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const log = (...args: any[]) => console.debug('[scanner]', ...args)
 
-  const ensureVideoReady = async (video: HTMLVideoElement) => {
+  // Video element readiness check with timeout
+  const waitForVideo = async (timeout = 5000): Promise<HTMLVideoElement> => {
+    const start = Date.now()
+    while (true) {
+      const video = videoRef.current
+      if (video && video.isConnected) {
+        log('[scan] video element ready:', video)
+        return video
+      }
+      if (Date.now() - start > timeout) {
+        throw new Error('Video element not ready within timeout. Ensure <video> is rendered in DOM.')
+      }
+      await new Promise(resolve => setTimeout(resolve, 50))
+    }
+  }
+
+  // HTTPS/security check
+  const checkSecurity = () => {
+    const isSecure = location.protocol === 'https:' ||
+                    location.hostname === 'localhost' ||
+                    location.hostname === '127.0.0.1'
+    if (!isSecure) {
+      throw new Error('この機能は HTTPS でのみ動作します。本番環境では HTTPS を使用してください。')
+    }
+  }
+
+  // Setup video element with iOS/Safari-safe attributes
+  const setupVideo = async (video: HTMLVideoElement) => {
     video.muted = true
     video.playsInline = true
     video.autoplay = true
-    video.setAttribute('autoplay', '')
-    video.setAttribute('playsinline', '')
     video.setAttribute('muted', '')
+    video.setAttribute('playsinline', '')
+    video.setAttribute('autoplay', '')
 
-    // iOS 対策: iOS は loadedmetadata 後に play を呼ぶ
+    // Wait for video to be ready for stream
     await new Promise<void>((resolve) => {
       if (video.readyState >= 1) return resolve()
       const onLoaded = () => {
@@ -36,35 +63,26 @@ export function useBarcodeScanner() {
     })
   }
 
+  // Get camera stream with proper constraints
   const getStream = async (): Promise<MediaStream> => {
     if (!navigator.mediaDevices?.getUserMedia) {
       throw new Error('getUserMedia is not supported on this browser')
     }
 
-    // 権限状態の把握（使える環境のみ）
-    try {
-      const perm = await navigator.permissions?.query({ name: 'camera' as any })
-      if (perm) log('permission:', perm.state)
-    } catch {}
-
-    // 画面向きの判定
-    const isPortrait = window.matchMedia('(orientation: portrait)').matches
-    log('[scan] orientation check - isPortrait:', isPortrait)
-
-    // 縦向き用に最適化されたconstraints
-    const portraitConstraints: MediaStreamConstraints = {
+    // Basic constraints optimized for barcode scanning
+    const constraints: MediaStreamConstraints = {
       video: {
         facingMode: { ideal: 'environment' },
-        width: { ideal: isPortrait ? 720 : 1280 },
-        height: { ideal: isPortrait ? 1280 : 720 },
-        aspectRatio: { ideal: isPortrait ? 3/4 : 4/3 },
+        aspectRatio: { ideal: 16 / 9 },
+        width: { ideal: 1280 },
+        height: { ideal: 720 }
       },
       audio: false
     }
 
-    // フォールバック順にトライ
+    // Fallback constraints
     const trials: MediaStreamConstraints[] = [
-      portraitConstraints,
+      constraints,
       { video: { facingMode: { exact: 'environment' } }, audio: false },
       { video: { facingMode: { ideal: 'environment' } }, audio: false },
       { video: true, audio: false },
@@ -73,147 +91,166 @@ export function useBarcodeScanner() {
     let lastErr: any
     for (const c of trials) {
       try {
-        log('[scan] getUserMedia with constraints:', c)
-        const s = await navigator.mediaDevices.getUserMedia(c)
-        return s
+        log('[scan] Trying getUserMedia with constraints:', c)
+        const stream = await navigator.mediaDevices.getUserMedia(c)
+        log('[scan] Successfully got stream')
+        return stream
       } catch (e) {
         lastErr = e
-        log('[scan] failed constraint ->', c, e)
+        log('[scan] Failed constraint:', c, e)
       }
     }
-    throw lastErr ?? new Error('failed to get camera stream')
+
+    console.error('[scan] All getUserMedia attempts failed:', lastErr)
+    throw lastErr ?? new Error('Failed to get camera stream')
   }
 
+  // Stop all scanning activities and cleanup
   const stop = useCallback(async () => {
-    log('[scan] stop()')
+    log('[scan] Stopping scanner')
+
+    // Stop animation frame
     if (rafRef.current) {
       cancelAnimationFrame(rafRef.current)
       rafRef.current = null
     }
+
+    // Clear ZXing reader
     if (zxingRef.current) {
       zxingRef.current = null
     }
+
+    // Stop all media tracks
     if (streamRef.current) {
-      streamRef.current.getTracks().forEach((t) => t.stop())
+      streamRef.current.getTracks().forEach((track) => {
+        track.stop()
+        log('[scan] Stopped track:', track.kind)
+      })
       streamRef.current = null
     }
-    if (videoRef.current) {
-      const v = videoRef.current
-      v.pause()
-      v.srcObject = null
-      v.removeAttribute('srcObject' as any)
-    }
-    setIsScanning(false)
-  }, [])
 
+    // Clear video element
+    const video = videoRef.current
+    if (video) {
+      video.pause()
+      video.srcObject = null
+      video.removeAttribute('src')
+    }
+
+    setIsScanning(false)
+    setError(null)
+    onDetectRef.current = null
+  }, [videoRef])
+
+  // Start scanning
   const start = useCallback(
     async (onDetect: OnDetect) => {
-      // onDetectを保存して再起動時に使用
-      ;(start as any)._lastOnDetect = onDetect
       setError(null)
       setIsScanning(true)
-      log('[scan] start()')
+      onDetectRef.current = onDetect
+
+      log('[scan] Starting scanner')
+
       try {
+        // Security check
+        checkSecurity()
+
+        // Wait for video element to be ready
+        const video = await waitForVideo()
+
+        // Setup video attributes
+        await setupVideo(video)
+
+        // Get camera stream
         const stream = await getStream()
         streamRef.current = stream
 
-        const video = videoRef.current
-        if (!video) throw new Error('video element not found')
-
+        // Connect stream to video
         video.srcObject = stream
-        await ensureVideoReady(video)
-
-        // メタデータ準備後に再度 play を呼ぶ（iOS/Chrome 双方安定）
         await video.play()
-        log('[scan] video.play() resolved, readyState=', video.readyState)
 
-        // ネイティブ or ZXing で検出
+        log('[scan] Video playing, readyState:', video.readyState)
+
+        // Start barcode detection
         const canUseNative =
           'BarcodeDetector' in globalThis &&
           typeof (globalThis as any).BarcodeDetector === 'function'
 
         if (canUseNative) {
+          log('[scan] Using native BarcodeDetector')
           const Detector = (globalThis as any).BarcodeDetector
           const detector = new Detector({ formats: ['ean_13', 'ean_8', 'code_128'] })
-          const loop = async () => {
+
+          const detectLoop = async () => {
             try {
-              if (!videoRef.current) return
+              if (!videoRef.current || !onDetectRef.current) return
+
               const barcodes = await detector.detect(videoRef.current)
               if (barcodes?.length) {
-                const raw = barcodes[0].rawValue
-                if (raw && raw !== lastCodeRef.current) {
-                  lastCodeRef.current = raw
-                  log('detected(nat):', raw)
-                  onDetect(raw)
+                const code = barcodes[0].rawValue
+                if (code && code !== lastCodeRef.current) {
+                  lastCodeRef.current = code
+                  log('[scan] Detected (native):', code)
+                  onDetectRef.current(code)
+                  return // Stop after detection
                 }
               }
             } catch (e) {
-              // frame エラーは握りつぶす
+              // Frame detection errors are normal, ignore
             }
-            rafRef.current = requestAnimationFrame(loop)
+
+            rafRef.current = requestAnimationFrame(detectLoop)
           }
-          rafRef.current = requestAnimationFrame(loop)
+
+          rafRef.current = requestAnimationFrame(detectLoop)
         } else {
+          log('[scan] Using ZXing library')
           const zxing = new BrowserMultiFormatReader()
           zxingRef.current = zxing
-          const loop = async () => {
+
+          const detectLoop = async () => {
             try {
-              if (!videoRef.current) return
+              if (!videoRef.current || !onDetectRef.current) return
+
               const result = await zxing.decodeOnceFromVideoElement(videoRef.current)
-              const raw = result?.getText?.()
-              if (raw && raw !== lastCodeRef.current) {
-                lastCodeRef.current = raw
-                log('detected(zxing):', raw)
-                onDetect(raw)
+              const code = result?.getText?.()
+              if (code && code !== lastCodeRef.current) {
+                lastCodeRef.current = code
+                log('[scan] Detected (ZXing):', code)
+                onDetectRef.current(code)
+                return // Stop after detection
               }
             } catch {
-              // not found in this frame
-            } finally {
-              rafRef.current = requestAnimationFrame(loop)
+              // Not found in this frame, continue
             }
+
+            rafRef.current = requestAnimationFrame(detectLoop)
           }
-          rafRef.current = requestAnimationFrame(loop)
+
+          rafRef.current = requestAnimationFrame(detectLoop)
         }
+
       } catch (e: any) {
-        log('[scan] start() failed:', e)
-        setError(e?.message ?? 'camera start failed')
+        console.error('[scan] Start failed:', e)
+        setError(e?.message ?? 'Camera start failed')
+        setIsScanning(false)
         await stop()
         throw e
       }
     },
-    [stop]
+    [videoRef, stop]
   )
 
-  // 画面回転/リサイズ監視で再起動
+  // Cleanup on unmount
   useEffect(() => {
-    const handleOrientationChange = () => {
-      if (isScanning && streamRef.current) {
-        log('[scan] orientation/resize detected, restarting camera')
-        // 現在のonDetectを保存して再起動
-        const currentOnDetect = (start as any)._lastOnDetect
-        if (currentOnDetect) {
-          stop().then(() => {
-            setTimeout(() => start(currentOnDetect), 100)
-          })
-        }
-      }
-    }
-
-    window.addEventListener('orientationchange', handleOrientationChange)
-    window.addEventListener('resize', handleOrientationChange)
-
     return () => {
-      window.removeEventListener('orientationchange', handleOrientationChange)
-      window.removeEventListener('resize', handleOrientationChange)
       stop()
     }
-  }, [stop, start, isScanning])
+  }, [stop])
 
   return {
-    videoRef,
     isScanning,
     error,
-    setIsScanning,
     start,
     stop,
     clearLast: () => (lastCodeRef.current = null),
