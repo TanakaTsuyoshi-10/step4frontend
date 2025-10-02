@@ -54,19 +54,29 @@ jobs:
         echo "Copying standalone server..."
         cp -R .next/standalone/* release/
 
-        # 2) Copy all .next build artifacts (complete set)
+        # 2) Copy all .next build artifacts (complete set including missing manifests)
         echo "Copying .next build artifacts..."
+        # Critical manifest files (必須)
         cp .next/BUILD_ID release/.next/ 2>/dev/null || echo "BUILD_ID not found"
         cp .next/routes-manifest.json release/.next/ 2>/dev/null || echo "routes-manifest.json not found"
+        cp .next/react-loadable-manifest.json release/.next/ 2>/dev/null || echo "react-loadable-manifest.json not found"
         cp .next/build-manifest.json release/.next/ 2>/dev/null || echo "build-manifest.json not found"
         cp .next/required-server-files.json release/.next/ 2>/dev/null || echo "required-server-files.json not found"
+
+        # Optional manifest files
         cp .next/app-build-manifest.json release/.next/ 2>/dev/null || echo "app-build-manifest.json not found"
         cp .next/prerender-manifest.json release/.next/ 2>/dev/null || echo "prerender-manifest.json not found"
+        cp .next/next-server.js.nft.json release/.next/ 2>/dev/null || echo "next-server.js.nft.json not found"
+        cp .next/server.js.nft.json release/.next/ 2>/dev/null || echo "server.js.nft.json not found"
+
+        # Copy all remaining .json files to ensure completeness
+        find .next -maxdepth 1 -name "*.json" -exec cp {} release/.next/ \; 2>/dev/null || true
 
         # Copy directories
         cp -R .next/static release/.next/ 2>/dev/null || echo "static directory not found"
         cp -R .next/server release/.next/ 2>/dev/null || echo "server directory not found"
         cp -R .next/trace release/.next/ 2>/dev/null || echo "trace directory not found"
+        cp -R .next/cache release/.next/ 2>/dev/null || echo "cache directory not found"
 
         # 3) Copy public assets
         cp -R public release/ 2>/dev/null || echo "public directory not found"
