@@ -14,8 +14,8 @@ export function TradeItems() {
         <div className="mx-auto w-16 h-16 bg-gradient-to-br from-gray-100 to-zinc-200 rounded-full flex items-center justify-center mb-4 border border-zinc-200">
           <ShoppingCart className="h-8 w-8 text-[rgb(var(--brand-from))]" />
         </div>
-        <p className="text-zinc-800 font-medium">商品が選択されていません</p>
-        <p className="text-sm text-zinc-600 mt-1">左側の商品検索から商品を追加してください</p>
+        <p className="text-black font-medium">商品が選択されていません</p>
+        <p className="text-sm text-black mt-1">商品検索から商品を追加してください</p>
       </div>
     )
   }

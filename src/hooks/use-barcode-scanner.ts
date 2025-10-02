@@ -19,8 +19,12 @@ export function useBarcodeScanner() {
 
   const ensureVideoReady = async (video: HTMLVideoElement) => {
     video.muted = true
-    ;(video as any).playsInline = true
+    video.playsInline = true
+    video.autoplay = true
     video.setAttribute('autoplay', '')
+    video.setAttribute('playsinline', '')
+    video.setAttribute('muted', '')
+
     // iOS 対策: iOS は loadedmetadata 後に play を呼ぶ
     await new Promise<void>((resolve) => {
       if (video.readyState >= 1) return resolve()

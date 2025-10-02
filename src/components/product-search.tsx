@@ -201,10 +201,10 @@ export function ProductSearch() {
             )}
           </div>
           <div className="mt-3 space-y-2">
-            <p className="text-sm text-gray-600 text-center font-medium">
+            <p className="text-sm text-black text-center font-medium">
               📱 バーコードを赤い枠内に合わせてください
             </p>
-            <div className="text-xs text-gray-700 space-y-1">
+            <div className="text-xs text-black space-y-1">
               <p className="text-center">💡 <strong>スキャンのコツ：</strong></p>
               <ul className="text-left space-y-1 max-w-sm mx-auto">
                 <li>• 明るい場所で使用する</li>
