@@ -81,7 +81,7 @@ export function TradeForm() {
       </Button>
 
       {hasItems && (
-        <div className="text-xs text-gray-500 text-center">
+        <div className="text-xs text-gray-900 text-center">
           商品数: {items.length}点 / 合計: ¥{total.total.toLocaleString()}
         </div>
       )}

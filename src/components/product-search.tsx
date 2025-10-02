@@ -160,19 +160,23 @@ export function ProductSearch() {
 
       {isScanning && (
         <div className="p-4 border-2 border-dashed border-gray-300 rounded-lg">
-          <div className="relative">
+          <div className="relative mx-auto aspect-[3/4] sm:aspect-[4/3] w-full max-w-[640px] rounded-xl overflow-hidden">
             <video
               ref={videoRef}
-              className="w-full aspect-video rounded-md bg-black/20"
+              className="w-full h-full object-cover rounded-md bg-black/20"
               muted
               playsInline
               autoPlay
             />
-            {/* スキャンガイドライン */}
+            {/* スキャンガイドライン（縦横で比率調整） */}
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <div className="relative w-48 h-32">
-                {/* メインフレーム */}
-                <div className="absolute inset-0 border-2 border-red-500 rounded bg-red-500/10"></div>
+              <div
+                className="relative border-4 border-red-500 rounded-md bg-red-500/10"
+                style={{
+                  width: '70%',
+                  height: window.matchMedia && window.matchMedia('(orientation: portrait)').matches ? '30%' : '60%',
+                }}
+              >
                 {/* コーナーマーカー */}
                 <div className="absolute -top-1 -left-1 w-6 h-6 border-t-4 border-l-4 border-red-500"></div>
                 <div className="absolute -top-1 -right-1 w-6 h-6 border-t-4 border-r-4 border-red-500"></div>
@@ -200,7 +204,7 @@ export function ProductSearch() {
             <p className="text-sm text-gray-600 text-center font-medium">
               📱 バーコードを赤い枠内に合わせてください
             </p>
-            <div className="text-xs text-gray-500 space-y-1">
+            <div className="text-xs text-gray-700 space-y-1">
               <p className="text-center">💡 <strong>スキャンのコツ：</strong></p>
               <ul className="text-left space-y-1 max-w-sm mx-auto">
                 <li>• 明るい場所で使用する</li>

@@ -20,7 +20,7 @@
     --secondary-foreground: 222.2 84% 4.9%;
 
     --muted: 210 40% 96%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    --muted-foreground: 222.2 47.4% 11.2%;
 
     --accent: 210 40% 96%;
     --accent-foreground: 222.2 84% 4.9%;
@@ -115,4 +115,15 @@
 
 .pos-button-destructive {
   @apply pos-button bg-destructive text-destructive-foreground hover:bg-destructive/90 h-10 px-4 py-2;
+}
+
+/* === scanner video 共通 === */
+video {
+  object-fit: cover;
+}
+
+/* === 背景ズレ対策：モバイルでは bg-fixed を使わない前提の調整 === */
+@supports (-webkit-touch-callout: none) {
+  /* iOS Safari スクロール時のズレ軽減。必要に応じて調整 */
+  body { background-attachment: scroll !important; }
 }

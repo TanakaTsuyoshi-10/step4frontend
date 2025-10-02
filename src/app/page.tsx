@@ -24,7 +24,7 @@ export default function Home() {
           backgroundSize: 'cover',
           backgroundPosition: 'center',
           backgroundRepeat: 'no-repeat',
-          backgroundAttachment: 'fixed'
+          backgroundAttachment: 'scroll'
         }}
       />
       <div className="fixed inset-0 z-10 bg-black/50" />

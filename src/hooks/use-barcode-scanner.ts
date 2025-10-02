@@ -43,8 +43,24 @@ export function useBarcodeScanner() {
       if (perm) log('permission:', perm.state)
     } catch {}
 
+    // 画面向きの判定
+    const isPortrait = window.matchMedia('(orientation: portrait)').matches
+    log('[scan] orientation check - isPortrait:', isPortrait)
+
+    // 縦向き用に最適化されたconstraints
+    const portraitConstraints: MediaStreamConstraints = {
+      video: {
+        facingMode: { ideal: 'environment' },
+        width: { ideal: isPortrait ? 720 : 1280 },
+        height: { ideal: isPortrait ? 1280 : 720 },
+        aspectRatio: { ideal: isPortrait ? 3/4 : 4/3 },
+      },
+      audio: false
+    }
+
     // フォールバック順にトライ
     const trials: MediaStreamConstraints[] = [
+      portraitConstraints,
       { video: { facingMode: { exact: 'environment' } }, audio: false },
       { video: { facingMode: { ideal: 'environment' } }, audio: false },
       { video: true, audio: false },
@@ -53,19 +69,19 @@ export function useBarcodeScanner() {
     let lastErr: any
     for (const c of trials) {
       try {
-        log('getUserMedia with', c)
+        log('[scan] getUserMedia with constraints:', c)
         const s = await navigator.mediaDevices.getUserMedia(c)
         return s
       } catch (e) {
         lastErr = e
-        log('failed constraint ->', c, e)
+        log('[scan] failed constraint ->', c, e)
       }
     }
     throw lastErr ?? new Error('failed to get camera stream')
   }
 
   const stop = useCallback(async () => {
-    log('stop()')
+    log('[scan] stop()')
     if (rafRef.current) {
       cancelAnimationFrame(rafRef.current)
       rafRef.current = null
@@ -88,9 +104,11 @@ export function useBarcodeScanner() {
 
   const start = useCallback(
     async (onDetect: OnDetect) => {
+      // onDetectを保存して再起動時に使用
+      ;(start as any)._lastOnDetect = onDetect
       setError(null)
       setIsScanning(true)
-      log('start()')
+      log('[scan] start()')
       try {
         const stream = await getStream()
         streamRef.current = stream
@@ -103,7 +121,7 @@ export function useBarcodeScanner() {
 
         // メタデータ準備後に再度 play を呼ぶ（iOS/Chrome 双方安定）
         await video.play()
-        log('video.play() resolved, readyState=', video.readyState)
+        log('[scan] video.play() resolved, readyState=', video.readyState)
 
         // ネイティブ or ZXing で検出
         const canUseNative =
@@ -153,7 +171,7 @@ export function useBarcodeScanner() {
           rafRef.current = requestAnimationFrame(loop)
         }
       } catch (e: any) {
-        log('start() failed:', e)
+        log('[scan] start() failed:', e)
         setError(e?.message ?? 'camera start failed')
         await stop()
         throw e
@@ -162,11 +180,30 @@ export function useBarcodeScanner() {
     [stop]
   )
 
+  // 画面回転/リサイズ監視で再起動
   useEffect(() => {
+    const handleOrientationChange = () => {
+      if (isScanning && streamRef.current) {
+        log('[scan] orientation/resize detected, restarting camera')
+        // 現在のonDetectを保存して再起動
+        const currentOnDetect = (start as any)._lastOnDetect
+        if (currentOnDetect) {
+          stop().then(() => {
+            setTimeout(() => start(currentOnDetect), 100)
+          })
+        }
+      }
+    }
+
+    window.addEventListener('orientationchange', handleOrientationChange)
+    window.addEventListener('resize', handleOrientationChange)
+
     return () => {
+      window.removeEventListener('orientationchange', handleOrientationChange)
+      window.removeEventListener('resize', handleOrientationChange)
       stop()
     }
-  }, [stop])
+  }, [stop, start, isScanning])
 
   return {
     videoRef,
