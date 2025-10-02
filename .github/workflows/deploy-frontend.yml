@@ -24,31 +24,21 @@ jobs:
           echo "NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }}" > .env.production
           cat .env.production
 
-      - name: Install deps & Build
-        run: |
-          npm ci
-          npm run build
+      - name: Install dependencies
+        run: npm ci
 
-      - name: Prepare deploy artifact (include node_modules)
-        run: |
-          rm -rf deploy && mkdir -p deploy
-          cp -r .next deploy/.next
-          cp -r public deploy/public
-          cp -r node_modules deploy/node_modules
-          cp package.json deploy/package.json
-          cp package-lock.json deploy/package-lock.json || true
-          [ -f .env.production ] && cp .env.production deploy/.env.production || true
-          [ -f next.config.js ] && cp next.config.js deploy/ || true
+      - name: Build application
+        run: npm run build
 
-      - name: Zip artifact
-        run: |
-          cd deploy
-          zip -r ../frontend.zip ./*
-          cd ..
-
-      - name: Deploy to Azure
+      - name: Deploy to Azure App Service
         uses: azure/webapps-deploy@v3
         with:
           app-name: ${{ secrets.AZURE_WEBAPP_NAME }}
           publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
-          package: frontend.zip
+          package: .
+
+      - name: Deployment Status
+        run: |
+          echo "✅ Deployment completed successfully!"
+          echo "🌐 App URL: https://${{ secrets.AZURE_WEBAPP_NAME }}.azurewebsites.net"
+          echo "📝 Using project root deployment with Oryx build"
