@@ -1,4 +1,4 @@
-name: Deploy Frontend to Azure App Service (standalone-flat)
+name: Deploy Frontend to Azure App Service (standalone-complete)
 
 on:
   push:
@@ -21,46 +21,86 @@ jobs:
     - name: Create production env file
       run: |
         echo "NEXT_PUBLIC_API_URL=${{ secrets.NEXT_PUBLIC_API_URL }}" > .env.production
+        echo "Created .env.production:"
         cat .env.production
 
-    - name: Install deps
+    - name: Install dependencies
       run: npm ci
 
-    - name: Build
+    - name: Build Next.js standalone
       run: npm run build
 
-    - name: Show .next (top 2 levels)
+    - name: Debug - Show .next structure after build
       run: |
-        set -xe
-        find .next -maxdepth 2 -type d -print
-        ls -la .next | sed -n '1,120p'
+        echo "=== .next directory structure ==="
+        find .next -type f | head -50
+        echo ""
+        echo "=== .next top level files ==="
+        ls -la .next/
 
-    - name: Prepare release (flat from standalone)
+    - name: Prepare production dependencies
       run: |
-        set -xe
+        # Production dependencies only
+        npm prune --omit=dev
+        echo "Production node_modules prepared"
+
+    - name: Create release package
+      run: |
+        set -e
         rm -rf release
         mkdir -p release/.next
-        # 1) standalone の中身をルートへフラットコピー（Next純正 server.js をルートへ）
+
+        # 1) Copy Next.js standalone server to root
+        echo "Copying standalone server..."
         cp -R .next/standalone/* release/
-        # 2) ルート .next へ必要なビルド物を配置
-        cp -R .next/static release/.next/
-        cp .next/BUILD_ID release/.next/BUILD_ID
-        # 3) 公開ファイル
-        cp -R public release/public
-        # 4) dotenv / package.json も一応同梱
-        cp -f .env.production release/.env.production || true
-        cp -f package.json release/package.json || true
 
-        echo "== release tree =="
-        find release -maxdepth 3 -print | sed -n '1,300p'
-        test -f release/server.js
-        test -f release/.next/BUILD_ID
+        # 2) Copy all .next build artifacts (complete set)
+        echo "Copying .next build artifacts..."
+        cp .next/BUILD_ID release/.next/ 2>/dev/null || echo "BUILD_ID not found"
+        cp .next/routes-manifest.json release/.next/ 2>/dev/null || echo "routes-manifest.json not found"
+        cp .next/build-manifest.json release/.next/ 2>/dev/null || echo "build-manifest.json not found"
+        cp .next/required-server-files.json release/.next/ 2>/dev/null || echo "required-server-files.json not found"
+        cp .next/app-build-manifest.json release/.next/ 2>/dev/null || echo "app-build-manifest.json not found"
+        cp .next/prerender-manifest.json release/.next/ 2>/dev/null || echo "prerender-manifest.json not found"
 
-    - name: Zip
+        # Copy directories
+        cp -R .next/static release/.next/ 2>/dev/null || echo "static directory not found"
+        cp -R .next/server release/.next/ 2>/dev/null || echo "server directory not found"
+        cp -R .next/trace release/.next/ 2>/dev/null || echo "trace directory not found"
+
+        # 3) Copy public assets
+        cp -R public release/ 2>/dev/null || echo "public directory not found"
+
+        # 4) Copy production node_modules
+        cp -R node_modules release/
+
+        # 5) Copy configuration files
+        cp package.json release/
+        cp .env.production release/
+
+        echo "Release package created successfully"
+
+    - name: Debug - Show complete release structure
+      run: |
+        echo "=== Release directory structure ==="
+        echo "Root files:"
+        ls -la release/
+        echo ""
+        echo "Complete .next structure (first 300 lines):"
+        ls -R release/.next | head -n 300
+        echo ""
+        echo "Validation checks:"
+        test -f release/server.js && echo "✓ server.js exists" || echo "✗ server.js missing"
+        test -d release/node_modules && echo "✓ node_modules exists" || echo "✗ node_modules missing"
+        test -f release/.next/BUILD_ID && echo "✓ BUILD_ID exists" || echo "✗ BUILD_ID missing"
+        test -f release/package.json && echo "✓ package.json exists" || echo "✗ package.json missing"
+
+    - name: Create deployment ZIP
       run: |
         cd release
         zip -qr ../release.zip .
         cd ..
+        echo "ZIP file created:"
         ls -lh release.zip
 
     - name: Deploy to Azure App Service
@@ -70,3 +110,8 @@ jobs:
         publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
         package: release.zip
         slot-name: 'production'
+
+    - name: Deployment complete
+      run: |
+        echo "Deployment completed successfully"
+        echo "Azure App Service should start with: npm start -> node server.js"
