@@ -1,10 +1,11 @@
 'use client'
 
 import { useMutation } from '@tanstack/react-query'
-import { Camera, X, Plus } from 'lucide-react'
-import { useRef } from 'react'
+import { Camera, X, Plus, Search } from 'lucide-react'
+import { useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
+import { Input } from '@/components/ui/input'
 import { useTradeStore } from '@/store/trade-store'
 import { useToast } from '@/hooks/use-toast'
 import { getProductByCode } from '@/lib/api'
@@ -15,6 +16,7 @@ export function ProductSearch() {
   const { pending, setPending, addPendingToCart } = useTradeStore()
   const { toast } = useToast()
   const videoRef = useRef<HTMLVideoElement>(null)
+  const [manualCode, setManualCode] = useState('')
 
   const { isScanning, error, start, stop, clearLast } = useBarcodeScanner(videoRef)
 
@@ -23,8 +25,9 @@ export function ProductSearch() {
     onSuccess: (product) => {
       setPending(product)
       handleStopScanning()
+      setManualCode('')
       toast({
-        title: "商品をスキャンしました",
+        title: "商品を検索しました",
         description: `${product.name} (¥${product.price})`,
       })
     },
@@ -71,6 +74,23 @@ export function ProductSearch() {
     await stop()
   }
 
+  const handleManualSearch = () => {
+    if (!manualCode.trim()) {
+      toast({
+        title: "エラー",
+        description: "バーコード番号を入力してください",
+        variant: "destructive",
+      })
+      return
+    }
+    searchMutation.mutate(manualCode.trim())
+  }
+
+  const handleManualSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    handleManualSearch()
+  }
+
   const handleAddToCart = () => {
     addPendingToCart()
     toast({
@@ -108,6 +128,32 @@ export function ProductSearch() {
             </Button>
           )}
         </div>
+      </div>
+
+      <div className="space-y-2">
+        <Label>バーコード番号入力</Label>
+        <form onSubmit={handleManualSubmit} className="flex gap-2">
+          <Input
+            type="text"
+            placeholder="バーコード番号を入力"
+            value={manualCode}
+            onChange={(e) => setManualCode(e.target.value)}
+            disabled={searchMutation.isPending}
+            className="flex-1"
+          />
+          <Button
+            type="submit"
+            disabled={searchMutation.isPending || !manualCode.trim()}
+            variant="outline"
+            className="h-10"
+          >
+            <Search className="h-4 w-4 mr-2" />
+            検索
+          </Button>
+        </form>
+        <p className="text-xs text-gray-600">
+          カメラが使用できない場合のバックアップ機能です
+        </p>
       </div>
 
       {/* エラー表示 */}

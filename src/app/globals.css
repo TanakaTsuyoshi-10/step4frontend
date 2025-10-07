@@ -77,9 +77,9 @@
 
 /* == brand tokens == */
 :root{
-  --brand-from: 34 153 110;  /* emerald-ish muted */
-  --brand-to:   13 116 128;  /* teal-ish muted    */
-  --card-bg:    255 255 255; /* white             */
+  --brand-from: 59 130 246;  /* blue-500 */
+  --brand-to:   37 99 235;   /* blue-600 */
+  --card-bg:    255 255 255; /* white     */
 }
 
 /* POS特有のスタイル */
