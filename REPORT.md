@@ -465,3 +465,59 @@ const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'https://app-002-gen10-ste
 **根本原因**: Azure App Service の Next.js standalone デプロイでは、`next start` コマンドまたは `.next/standalone/server.js` の直接実行が必要。`server.js` ファイルが存在しない状態で `node server.js` を実行すると、起動に失敗し 404 エラーが発生する。
 
 **修正効果**: `next start -p ${PORT:-3000}` により、Azure App Service が提供する `$PORT` 環境変数で正しいポートにバインドし、Next.js サーバーが適切に起動するようになる。
+
+## 🔧 Node.js 実行時エラー修正 - 2025-10-09
+
+### 事象
+- Azure App Service で Next.js 起動時に以下エラーが発生:
+  ```
+  Error: Cannot find module '../server/require-hook'
+  ```
+- Node.js v22.17.0 と Next.js 14.2.5 の実行時不整合
+
+### 原因
+- **Node.js バージョン不整合**: Azure App Service が Node v22.17.0 を使用
+- **Next.js 14.2.5 との非互換性**: 内部モジュール解決パスが v22 で変更され、require-hook が見つからない
+- **engines 設定の問題**: package.json で ">=20 <23" と広範囲指定により不安定バージョンが使用される
+
+### 対応
+#### 1. Node.js バージョン固定:
+```json
+// package.json engines 修正
+"engines": {
+  "node": "18.x",    // was: ">=20 <23"
+  "npm": ">=10"
+}
+```
+
+#### 2. バージョン管理ファイル追加:
+```bash
+# .nvmrc
+18.20.3
+
+# .node-version
+18.20.3
+```
+
+#### 3. start スクリプト最適化:
+```json
+// package.json scripts 修正
+"start": "next start -p $PORT",           // was: "next start -p ${PORT:-3000}"
+"postinstall": "next telemetry disable || true"
+```
+
+#### 4. デプロイ実行:
+- Git commit: 703cf54
+- GitHub Actions 経由で自動デプロイ
+- Azure App Service で Node 18.x が自動選択される
+
+### 技術詳細
+**Node 18 vs 22 差異**: Next.js 14.2.5 は Node 18 LTS での動作を前提として設計。Node 22 では ES Module 解決パスや内部 require フックの仕様変更により、ビルド済みバンドル内の相対パス解決が失敗する。
+
+**修正効果**: Node 18.20.3 固定により、Next.js の internal require-hook モジュールが正常に解決され、Azure App Service での安定した起動が保証される。
+
+### 検証結果（予定）
+- 本番URLで 200 応答確認
+- 「Cannot find module」エラーの解消
+- セキュリティヘッダー維持
+- CORS + API 通信の完全復旧
