@@ -407,3 +407,61 @@ allowed_origins = [
   - クエリパラメータ（?redirect=）の動作確認
   - セキュリティヘッダーの確認
   - **新規**: CORS修正後のライブ通信確認
+
+## 🚨 404エラー原因と対処 - 2025-10-09
+
+### 事象
+- フロントエンドのルート (/) へアクセスすると 404 Not Found。
+- Azure App Service URL: `https://app-002-gen10-step3-1-node-oshima30.azurewebsites.net/`
+
+### 原因
+- **package.json の start スクリプト不整合**:
+  ```json
+  "start": "node server.js"  // 問題: server.js ファイルが存在しない
+  ```
+- Azure App Service では `npm start` が実行されるが、`server.js` が見つからずに起動失敗
+- `next.config.js` に `output: 'standalone'` が設定されているが、start コマンドが対応していない
+
+### 対応
+#### 1. package.json start スクリプト修正:
+```json
+// 修正前
+"start": "node server.js"
+
+// 修正後
+"start": "next start -p ${PORT:-3000}"
+```
+
+#### 2. next.config.js backend URL 更新:
+```javascript
+// 修正前
+const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'https://aca-gen10-01.ambitiousground-989c3319.australiaeast.azurecontainerapps.io'
+
+// 修正後
+const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'https://app-002-gen10-step3-1-py-oshima30.azurewebsites.net'
+```
+
+#### 3. CSP connect-src ディレクティブ更新:
+```javascript
+// 修正前
+"connect-src 'self' aca-gen10-01.ambitiousground-989c3319.australiaeast.azurecontainerapps.io"
+
+// 修正後
+"connect-src 'self' app-002-gen10-step3-1-py-oshima30.azurewebsites.net"
+```
+
+#### 4. デプロイ実行:
+- Git commit: 201b66a
+- GitHub Actions 経由で自動デプロイ
+- ローカル build は npm ci タイムアウトのため skip
+
+### 検証結果（予定）
+- 本番URLで 200 応答確認
+- ログイン/商品検索が画面遷移できることを確認
+- セキュリティヘッダー（HSTS 等）が維持されていることを確認
+- CORS 設定で API 通信が成功することを確認
+
+### 技術詳細
+**根本原因**: Azure App Service の Next.js standalone デプロイでは、`next start` コマンドまたは `.next/standalone/server.js` の直接実行が必要。`server.js` ファイルが存在しない状態で `node server.js` を実行すると、起動に失敗し 404 エラーが発生する。
+
+**修正効果**: `next start -p ${PORT:-3000}` により、Azure App Service が提供する `$PORT` 環境変数で正しいポートにバインドし、Next.js サーバーが適切に起動するようになる。
