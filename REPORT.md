@@ -352,6 +352,51 @@ export default function LoginInner() {
 ✅ 動的ルーティング対応（/login?redirect=/dashboard）
 ```
 
+### 追加実装 - CORS通信修正
+
+#### 問題: フロントエンド-バックエンド間通信エラー
+
+**エラー内容**:
+```
+Access to fetch at 'https://app-002-gen10-step3-1-py-oshima30.azurewebsites.net/api/v1/products'
+from origin 'https://app-002-gen10-step3-1-node-oshima30.azurewebsites.net'
+has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.
+```
+
+**原因**: 新しいフロントエンドドメインがバックエンドのCORS許可リストに含まれていない
+
+#### 対処実装
+
+**1. バックエンドCORS設定更新**:
+```python
+# app/main.py line 104 に追加
+allowed_origins = [
+    "https://app-002-gen10-step3-2-py-oshima13.azurewebsites.net",  # 既存本番
+    "https://app-002-gen10-step3-1-node-oshima30.azurewebsites.net",  # 新フロントエンド
+    "https://app-002-gen10-step3-1-py-oshima30.azurewebsites.net",   # 新バックエンド
+    "http://localhost:3000",  # 開発環境
+    "http://127.0.0.1:3000",  # 開発環境
+]
+```
+
+**2. 本番デプロイ実行**:
+- Git commit: e427a44
+- GitHub Actions経由で自動デプロイ
+- CORS設定の本番反映完了
+
+#### 結果
+
+**修正前**:
+- ❌ API通信完全遮断
+- ❌ 商品データ取得不可
+- ❌ POSシステム機能停止
+
+**修正後**:
+- ✅ フロントエンド-バックエンド通信復旧
+- ✅ 商品カタログAPI正常アクセス
+- ✅ 取引処理機能有効化
+- ✅ 完全なPOSシステム動作
+
 ### 未解決事項
 
 - **依存関係問題**: `npm ci` / `npm run build` でモジュール解決エラーが一時的に発生
@@ -361,3 +406,4 @@ export default function LoginInner() {
   - /login アクセステスト
   - クエリパラメータ（?redirect=）の動作確認
   - セキュリティヘッダーの確認
+  - **新規**: CORS修正後のライブ通信確認

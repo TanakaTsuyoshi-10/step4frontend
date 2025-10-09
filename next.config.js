@@ -39,7 +39,7 @@ const nextConfig = {
               "style-src 'self' 'unsafe-inline'",
               "img-src 'self' data: blob:",
               "font-src 'self' data:",
-              "connect-src 'self' aca-gen10-01.ambitiousground-989c3319.australiaeast.azurecontainerapps.io",
+              "connect-src 'self' app-002-gen10-step3-1-py-oshima30.azurewebsites.net",
               "media-src 'self' blob:",
               "object-src 'none'",
               "base-uri 'self'",
@@ -53,7 +53,7 @@ const nextConfig = {
     ]
   },
   async rewrites() {
-    const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'https://aca-gen10-01.ambitiousground-989c3319.australiaeast.azurecontainerapps.io'
+    const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'https://app-002-gen10-step3-1-py-oshima30.azurewebsites.net'
     return [
       {
         source: '/api/:path*',

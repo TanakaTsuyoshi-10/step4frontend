@@ -256,10 +256,47 @@ src/app/login/
 - ✅ Security configurations maintained (HSTS, CSP, JWT auth)
 - ✅ Login flow with query parameter support (?redirect=)
 - ✅ Dynamic routing and authentication preserved
-- 🔄 Ready for GitHub Actions deployment
+- ✅ GitHub Actions deployment completed
 
 **Testing Required Post-Deployment:**
 - [ ] `/login` page accessibility and functionality
 - [ ] Query parameter handling (?redirect=/dashboard)
 - [ ] Security headers presence in production
 - [ ] Authentication flow end-to-end testing
+
+## [2.0.2] - 2025-10-09
+
+### 🔧 CORS Communication Fix
+
+#### Fixed
+
+**Backend CORS Configuration:**
+- Added missing frontend domain to CORS allowed origins
+- Updated `/Users/tanakatsuyoshi/Desktop/POSapp/app/main.py:line 104`
+- Added `"https://app-002-gen10-step3-1-node-oshima30.azurewebsites.net"` to allowed_origins list
+- Resolves "CORS policy: No 'Access-Control-Allow-Origin'" errors
+
+**Deployment:**
+- Deployed CORS fix to production backend (commit: e427a44)
+- Backend URL: `https://app-002-gen10-step3-1-py-oshima30.azurewebsites.net`
+- Frontend URL: `https://app-002-gen10-step3-1-node-oshima30.azurewebsites.net`
+
+#### Impact
+
+**Before Fix:**
+```
+Access to fetch at 'https://app-002-gen10-step3-1-py-oshima30.azurewebsites.net/api/v1/products'
+from origin 'https://app-002-gen10-step3-1-node-oshima30.azurewebsites.net'
+has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource.
+```
+
+**After Fix:**
+- ✅ Frontend-backend communication restored
+- ✅ Product catalog API accessible
+- ✅ Trade processing functionality enabled
+- ✅ Full POS system operational
+
+#### Testing Status
+- [x] CORS configuration updated
+- [x] Production deployment completed
+- [ ] Live production communication verification pending
