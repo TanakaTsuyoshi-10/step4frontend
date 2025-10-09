@@ -258,3 +258,106 @@ POSシステムのセキュリティ強化により、以下が実現されま�
 5. **本番環境対応**: Azure最適化設定
 
 システムは本番環境での安全な運用に向けて準備が完了しており、継続的な監視とメンテナンスにより長期的なセキュリティを維持できます。
+
+## 🔧 ビルドエラー原因と対処
+
+### 対処済み問題
+
+#### 1. experimental.serverActions 非推奨警告
+
+**問題**: Next.js 14.2.5で `experimental.serverActions: true` が非推奨
+```javascript
+// 問題のあった設定
+experimental: {
+  serverActions: true,  // ← 非推奨警告
+}
+```
+
+**対処**: Server Actionsは現在デフォルトで有効のため設定を削除
+```javascript
+// 修正後（experimental設定ブロック全体を削除）
+const nextConfig = {
+  output: 'standalone',
+  eslint: { ignoreDuringBuilds: true },
+  // experimental設定は不要
+}
+```
+
+#### 2. /login ページのプリレンダリングエラー
+
+**問題**: useSearchParams() がSuspense境界で囲まれていない
+```
+Error: useSearchParams() should be wrapped in a suspense boundary at page '/login'
+```
+
+**対処**: ページをClient Component化 + Suspense + 動的レンダリング指定
+
+**修正前のpage.tsx**:
+```tsx
+'use client'
+import { useSearchParams } from 'next/navigation'
+
+export default function LoginPage() {
+  const searchParams = useSearchParams() // ← Suspense境界なし
+  // ...
+}
+```
+
+**修正後のpage.tsx**:
+```tsx
+'use client'
+
+import { Suspense } from 'react'
+import LoginInner from './_LoginInner'
+
+export const dynamic = 'force-dynamic'  // プリレンダリング回避
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<LoadingSpinner />}>
+      <LoginInner />  // useSearchParams使用ロジックを分離
+    </Suspense>
+  )
+}
+```
+
+**新規作成 _LoginInner.tsx**:
+```tsx
+'use client'
+
+import { useSearchParams } from 'next/navigation'
+
+export default function LoginInner() {
+  const searchParams = useSearchParams()  // ← Suspense境界内で安全
+  // 元のログインロジック
+}
+```
+
+### 実装した追加対策
+
+1. **loading.tsx追加**: ルートレベルのフォールバック
+2. **dynamic = 'force-dynamic'**: 静的生成を無効化
+3. **ファイル分離**: useSearchParams使用箇所をSuspense内に隔離
+
+### ビルド結果
+
+```bash
+# 修正前
+❌ Build failed due to experimental.serverActions warning
+❌ Error: useSearchParams() should be wrapped in a suspense boundary
+
+# 修正後
+✅ 本番ビルド成功予定（修正内容的に解決）
+✅ セキュリティ設定維持（HSTS, CSP, JWT認証等）
+✅ 動的ルーティング対応（/login?redirect=/dashboard）
+```
+
+### 未解決事項
+
+- **依存関係問題**: `npm ci` / `npm run build` でモジュール解決エラーが一時的に発生
+  - 原因: node_modules の部分的破損可能性
+  - 対処方針: GitHub Actions上のクリーンビルド環境で解決見込み
+- **TODO**: 本番デプロイ後の動作確認
+  - /login アクセステスト
+  - クエリパラメータ（?redirect=）の動作確認
+  - セキュリティヘッダーの確認

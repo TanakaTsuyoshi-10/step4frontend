@@ -2,9 +2,6 @@
 const nextConfig = {
   output: 'standalone',
   eslint: { ignoreDuringBuilds: true },
-  experimental: {
-    serverActions: true,
-  },
   async headers() {
     return [
       {
