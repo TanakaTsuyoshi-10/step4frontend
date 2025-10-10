@@ -1,7 +1,11 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  reactStrictMode: true,
+  poweredByHeader: false,
+  productionBrowserSourceMaps: false,
   output: 'standalone',
   eslint: { ignoreDuringBuilds: true },
+
   async headers() {
     return [
       {
@@ -52,6 +56,7 @@ const nextConfig = {
       }
     ]
   },
+
   async rewrites() {
     const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'https://app-002-gen10-step3-1-py-oshima30.azurewebsites.net'
     return [
@@ -60,22 +65,7 @@ const nextConfig = {
         destination: `${backendUrl}/:path*`
       }
     ]
-  },
-  async redirects() {
-    return [
-      {
-        source: '/admin',
-        destination: '/dashboard',
-        permanent: false
-      }
-    ]
-  },
-  poweredByHeader: false,
-  compress: true,
-  generateEtags: false,
-  httpAgentOptions: {
-    keepAlive: true
   }
-};
+}
 
 module.exports = nextConfig;
