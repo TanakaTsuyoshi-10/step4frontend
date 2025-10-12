@@ -1,0 +1,52 @@
+name: Redeploy Frontend to Azure App Service
+
+on:
+  workflow_dispatch: {}         # ← 手動実行可
+  push:
+    branches: [ "main" ]        # ← mainにpushで自動実行
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    env:
+      NODE_VERSION: '18'
+      APP_NAME: ${{ secrets.AZURE_WEBAPP_NAME }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Node ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Clean install
+        run: npm ci
+
+      - name: Build (Next.js standalone)
+        run: |
+          npm run build
+          echo "== Build 出力を確認 =="
+          test -d ".next/standalone" || { echo "❌ .next/standalone がありません"; exit 1; }
+          test -d ".next/static" || { echo "❌ .next/static がありません"; exit 1; }
+          ls -la .next
+
+      - name: Create ZIP artifact
+        run: |
+          rm -f release.zip
+          # ルート直下に .next/standalone .next/static public package.json を配置するZIPを作る
+          zip -r release.zip .next/standalone .next/static public package.json
+          echo "== ZIP 内容 =="
+          unzip -l release.zip | head -n 50
+
+      # Publish Profile 方式でデプロイ（Secrets 必須）
+      - name: Deploy to Azure WebApp (Publish Profile)
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ env.APP_NAME }}
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+          package: release.zip
