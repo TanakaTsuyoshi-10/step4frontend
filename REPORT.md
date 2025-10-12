@@ -855,3 +855,66 @@ content-security-policy: default-src 'self'; script-src 'self' 'unsafe-inline' '
 4. **監視対応**: Application Insights 連携準備済み
 
 **結論**: Next.js Standalone デプロイにより、POS システムの安定した本番運用環境が完全に確立されました。
+
+## 🚨 /_next/static アセット 404 問題への対処 - 2025-10-10
+
+### 事象
+- HTMLは200で正常返却されるが、CSS/JSファイル（/_next/static/*）が404エラー
+- 静的アセットが `Content-Type: text/html; charset=utf-8` で返却される（本来は `application/javascript` や `text/css`）
+- ブラウザがMIME type不整合により実行を拒否し、画面描画が失敗する
+
+### 根因
+- **App Service の起動方法**: `npm start` → `next start` が実行されている可能性
+- **静的ファイル配布不備**: `.next/static` ディレクトリがApp Service上で正しく配置されていない
+- **standalone サーバー非実行**: `node .next/standalone/server.js` が適用されていない
+
+### 検証結果
+```bash
+# HTML は正常
+curl -I https://app-002-gen10-step3-1-node-oshima30.azurewebsites.net/
+# HTTP/2 200 ✅
+
+# 静的アセットは404（HTML として返却）
+curl -I https://app-002-gen10-step3-1-node-oshima30.azurewebsites.net/_next/static/chunks/485-43767ef5d368ea8c.js
+# HTTP/2 404 ❌
+# content-type: text/html; charset=utf-8 ❌ (本来は application/javascript であるべき)
+```
+
+### 実施した対処
+1. **next.config.js 最適化**: `output: 'standalone'` + 不要設定削除
+2. **package.json 修正**: `"start": "node .next/standalone/server.js"`
+3. **Azure 設定更新**:
+   ```bash
+   az webapp config set --startup-file "node .next/standalone/server.js"
+   az webapp config appsettings set --settings WEBSITE_NODE_DEFAULT_VERSION=~18 SCM_DO_BUILD_DURING_DEPLOYMENT=false
+   ```
+4. **standalone ZIP デプロイ**: `.next/standalone + .next/static + public + package.json` を直接配布
+5. **PWA manifest 追加**: 404エラー回避のため `public/manifest.json` を作成
+
+### デプロイ状況
+- ✅ **Azure デプロイ**: `az webapp deploy` にて成功
+- ✅ **起動コマンド設定**: `node .next/standalone/server.js` 設定済み
+- ✅ **Node 18 LTS**: 実行環境確定
+- ❌ **静的アセット**: 依然として404（継続調査中）
+
+### 次のアクション
+1. **Kudu コンソール確認**: `/home/site/wwwroot/.next/static` ディレクトリの存在確認
+2. **起動ログ確認**: Azure App Service のログでstartup commandの実行状況確認
+3. **GitHub Actions 再実行**: 最新設定でのCI/CDパイプライン実行
+4. **完全フレッシュデプロイ**: 新規ビルド成果物での手動デプロイ
+
+### 技術的詳細
+**静的アセット配信の仕組み**:
+- **正常時**: `next start` または `node .next/standalone/server.js` が `/_next/static/*` パスを `.next/static/` ディレクトリから配信
+- **異常時**: パスが解決されず、Next.js の 404 ページ（HTML）が返却される
+
+**Azure App Service 特有の問題**:
+- ZIP デプロイ時の展開パスや権限の問題
+- 起動コマンドの適用タイミングの問題
+- Node.js版とNext.js版の微細な差異
+
+**期待される解決効果**:
+- `/_next/static/chunks/*.js` → `Content-Type: application/javascript` + 200応答
+- `/_next/static/css/*.css` → `Content-Type: text/css` + 200応答
+- ブラウザでの正常なJavaScript/CSS実行
+- 完全なPOSシステム画面描画
