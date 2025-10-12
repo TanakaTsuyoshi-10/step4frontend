@@ -1,52 +1,71 @@
-name: Redeploy Frontend to Azure App Service
+name: Deploy Frontend to Azure App Service (standalone-complete)
 
 on:
-  workflow_dispatch: {}         # ← 手動実行可
+  workflow_dispatch:
   push:
-    branches: [ "main" ]        # ← mainにpushで自動実行
+    branches: [ "main" ]
+    paths:
+      - "src/**"
+      - "public/**"
+      - "package.json"
+      - "package-lock.json"
+      - "next.config.js"
+      - "middleware.*"
+      - ".github/workflows/redeploy.yml"
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-
-    env:
-      NODE_VERSION: '18'
-      APP_NAME: ${{ secrets.AZURE_WEBAPP_NAME }}
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Use Node ${{ env.NODE_VERSION }}
+      - name: Use Node.js 18 LTS
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version: 18
+          cache: 'npm'
 
-      - name: Clean install
+      - name: Install deps (clean)
         run: npm ci
 
       - name: Build (Next.js standalone)
-        run: |
-          npm run build
-          echo "== Build 出力を確認 =="
-          test -d ".next/standalone" || { echo "❌ .next/standalone がありません"; exit 1; }
-          test -d ".next/static" || { echo "❌ .next/static がありません"; exit 1; }
-          ls -la .next
+        run: npm run build
 
-      - name: Create ZIP artifact
+      # 静的アセットを確実に解決（server.js と .next が同階層にある前提運用）
+      - name: Prepare server.js & static assets layout
         run: |
+          set -eux
+          # ルートに server.js がなければ .next/standalone から持ってくる
+          if [ ! -f server.js ] && [ -f .next/standalone/server.js ]; then
+            cp -f .next/standalone/server.js ./server.js
+          fi
+          # .next/static を二重で持たせる（ルート直下 & standalone側の両方）
+          if [ -d .next/static ]; then
+            mkdir -p .next/standalone/.next
+            rsync -a .next/static/ .next/standalone/.next/static/ || true
+          fi
+
+      - name: Make release.zip (server.js + .next + public + package.json)
+        run: |
+          set -eux
           rm -f release.zip
-          # ルート直下に .next/standalone .next/static public package.json を配置するZIPを作る
-          zip -r release.zip .next/standalone .next/static public package.json
-          echo "== ZIP 内容 =="
+          zip -r release.zip server.js .next public package.json > /dev/null
           unzip -l release.zip | head -n 50
 
-      # Publish Profile 方式でデプロイ（Secrets 必須）
       - name: Deploy to Azure WebApp (Publish Profile)
         uses: azure/webapps-deploy@v3
         with:
-          app-name: ${{ env.APP_NAME }}
+          app-name: app-002-gen10-step3-1-node-oshima30
           publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
           package: release.zip
+
+      - name: Post-check (root + one static)
+        run: |
+          set -eux
+          URL="https://app-002-gen10-step3-1-node-oshima30.azurewebsites.net"
+          curl -sI "$URL" | egrep -i "HTTP/|content-type" || true
+          JS=$(curl -s "$URL" | grep -oE '/_next/static/[^"]+\.js' | head -n1 || true)
+          CSS=$(curl -s "$URL" | grep -oE '/_next/static/[^"]+\.css' | head -n1 || true)
+          if [ -n "$JS" ]; then curl -sI "$URL$JS" | egrep -i "HTTP/|content-type" || true; fi
+          if [ -n "$CSS" ]; then curl -sI "$URL$CSS" | egrep -i "HTTP/|content-type" || true; fi
