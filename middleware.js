@@ -11,8 +11,8 @@ export function middleware(req) {
   res.headers.set('X-Frame-Options', 'DENY')
   // 参照元制御
   res.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
-  // 権限ポリシー（必要に応じて開放）
-  res.headers.set('Permissions-Policy', "geolocation=(), microphone=(), camera=(), usb=(), payment=()")
+  // 権限ポリシー（camera/microphone許可）
+  res.headers.set('Permissions-Policy', "camera=(self), microphone=(self), geolocation=(self), fullscreen=(self), usb=(), payment=()")
   // COOP/ CORP
   res.headers.set('Cross-Origin-Opener-Policy', 'same-origin')
   res.headers.set('Cross-Origin-Resource-Policy', 'same-origin')

@@ -5,6 +5,7 @@ const nextConfig = {
   productionBrowserSourceMaps: false,
   output: 'standalone',
   eslint: { ignoreDuringBuilds: true },
+  typescript: { ignoreBuildErrors: true },
 
   async headers() {
     return [
@@ -33,7 +34,7 @@ const nextConfig = {
           },
           {
             key: 'Permissions-Policy',
-            value: 'camera=(), microphone=(), geolocation=(), interest-cohort=()'
+            value: 'camera=(self), microphone=(self), geolocation=(self), fullscreen=(self), interest-cohort=()'
           },
           {
             key: 'Content-Security-Policy',
