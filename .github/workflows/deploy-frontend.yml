@@ -1,0 +1,48 @@
+name: Deploy Frontend to Azure App Service
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - "app/**"
+      - "src/**"
+      - "public/**"
+      - "middleware.*"
+      - "next.config.*"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/deploy-frontend.yml"
+  workflow_dispatch: {}
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Node 18 LTS
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: CI Install
+        run: npm ci
+
+      - name: Build (Next.js standalone)
+        run: |
+          NODE_ENV=production npx next build
+
+      - name: Copy public to standalone
+        run: |
+          cp -r public .next/standalone/
+
+      - name: Prepare ZIP (standalone + static)
+        run: |
+          rm -f pos-frontend-standalone.zip
+          zip -r pos-frontend-standalone.zip .next/standalone .next/static package.json
+
+      - name: Deploy to Azure
+        run: |
+          echo "Deployment would be triggered here"
